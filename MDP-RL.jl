@@ -1,5 +1,7 @@
 using POMDPs, QuickPOMDPs, POMDPPolicies, POMDPModelTools
 using Parameters, Random
+using Distributions
+using SparseArrays
 using Combinatorics
 using Plots; default(fontfamily="Computer Modern", framestyle=:box) # LaTex-style
 
@@ -70,6 +72,28 @@ end
 # 	print(decode_Actions(i))
 # end
 
+function T(StateSpace, ActionSpace)
+	s = length(StateSpace) #number of states
+	a = length(ActionSpace) #number of actions
+	Transitions = [zeros(s,s) for k in 1:a]
+	for k in 1:a
+		Transitions[k][:,1] = rand(Uniform(0,1),s)
+		for i in 1:s
+			for j in shuffle(2:s-1)
+				Transitions[k][i,j] = rand(Uniform(0, 1 - sum(Transitions[k][i,(Transitions[k][i,:].!=0)])));
+			end
+		end
+		Transitions[k][:,end] = 1 .- sum(Transitions[k],dims=2)
+		Transitions[k] = round.(Transitions[k], digits=3)
+		for i in 1:s
+			Transitions[k][i,:] = circshift(Transitions[k][i,:],i-1)
+			Transitions[k][i,:] = normalize(Transitions[k][i,:],1)
+		end
+	end
+	Transitions = [sparse(Transitions[k]) for k in 1:a]
+	return Transitions
+end
+#=
 function T(s, a, s̃)
 	p_A[1] = params.p_A_a0
 	p_A[2] = params.p_A_a1
@@ -98,6 +122,7 @@ function T(s, a, s̃)
 		end
 	end
 end
+=#
 
 function R(s, a, sp)
 	Reward = 0
