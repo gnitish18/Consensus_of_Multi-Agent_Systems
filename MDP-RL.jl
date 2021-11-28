@@ -5,11 +5,11 @@ using Plots; default(fontfamily="Computer Modern", framestyle=:box) # LaTex-styl
 
 @with_kw struct ConsensusProblem
 	# Rewards
-	r_state_change::Real = -100
-	r_interact::Real = -500
-	r_interaction_consensus::Real = 1000
-	r_wisdom::Real = 500
-	r_final_consensus::Real = 10000
+	r_state_change::Real = -10
+	r_interact::Real = -5
+	r_interaction_consensus::Real = 10
+	r_wisdom::Real = 5
+	r_final_consensus::Real = 100
 	
 	# Transition probabilities
 	p_A_a0::Real = 0.3
@@ -70,7 +70,7 @@ end
 # 	print(decode_Actions(i))
 # end
 
-transition_function = function T(s, a, s̃)
+function T(s, a, s̃)
 	p_A[1] = params.p_A_a0
 	p_A[2] = params.p_A_a1
 	p_B[1] = params.p_B_a0
@@ -159,7 +159,23 @@ function R(s, a, sp)
 	return Reward
 end
 
-#SparseCat([SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ], [0.7, 1, 0.2])
+struct BanditModel
+	B # vector of beta distributions
+end
+
+mutable struct EpsilonGreedyExploration
+	ϵ # probability of random arm
+	α # exploration decay factor
+end
+
+function (π::EpsilonGreedyExploration)(model::BanditModel)
+	if rand() < π.ϵ
+		π.ϵ *= π.α
+	return rand(eachindex(model.B))
+	else
+		return argmax(mean.(model.B))
+	end
+end
 
 R(25, 6, 27)
 
