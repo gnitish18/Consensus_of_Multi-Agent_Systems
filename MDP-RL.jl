@@ -81,11 +81,17 @@ function Transition_Matrix(StateSpace, ActionSpace)
 	Transitions = [zeros(s,s) for k in 1:a]
 	for k in 1:a
 		Transitions[k][:,1] = rand(0:0.0001:1,s)
-		for i in 1:s
-			for j in shuffle(2:s-1)
-				Transitions[k][i,j] = rand(0:0.0001:1 - sum(Transitions[k][i,(Transitions[k][i,:].!=0)]));
+			for i in 1:s
+				for j in shuffle(2:s-1)
+					lim = 1 - sum(Transitions[k][i,(Transitions[k][i,:].!=0)])
+					if(lim > 0)
+						Transitions[k][i,j] = rand(0:0.0001:lim);
+					else
+						Transitions[k][i,j] = 0;	
+					end
+				end
 			end
-		end
+
 		Transitions[k][:,end] = 1 .- sum(Transitions[k],dims=2)
 		Transitions[k] = round.(Transitions[k], digits=3)
 		for i in 1:s
@@ -99,10 +105,11 @@ end
 
 function T(s, a)
 	#@show Transitions[a][s,:]
-	return Transitions[a][s,:]
+	#return Transitions[a][s,:]
 	#return #SparseCat([SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ], [(1-p_A[2])/2, (1-p_A[2])/2, p_A[2]])
-	@show SparseCat(StateSpace, [1/27 for i in 1:27])
-	return SparseCat(StateSpace, [1/27 for i in 1:27])
+	display(SparseCat(StateSpace, Transitions[a+1][s+1,:]))
+	#return SparseCat(StateSpace, [1/27 for i in 1:27])
+ 	return SparseCat(StateSpace, Transitions[a+1][s+1,:])
 end
 
 #=
