@@ -1,4 +1,4 @@
-using POMDPs, QuickPOMDPs, POMDPPolicies, POMDPModelTools
+using POMDPs, QuickPOMDPs, POMDPPolicies, POMDPModelTools, POMDPSimulators
 using Parameters, Random
 using SparseArrays
 using Combinatorics
@@ -92,16 +92,10 @@ function Transition_Matrix(StateSpace, ActionSpace)
 			end
 		end
 	end
-	#Transitions = [sparse(Transitions[k]) for k in 1:a]
 	return Transitions
 end
 
 function T(s, a)
-	#@show Transitions[a][s,:]
-	#return Transitions[a][s,:]
-	#return #SparseCat([SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ], [(1-p_A[2])/2, (1-p_A[2])/2, p_A[2]])
-	# display(SparseCat(StateSpace, Transitions[a+1][s+1,:]))
-	#return SparseCat(StateSpace, [1/27 for i in 1:27])
  	return SparseCat(StateSpace, Transitions[a+1][s+1,:])
 
 end
@@ -193,7 +187,6 @@ function R(s, a, sp)
 			Reward += length(p)*params.r_interaction_consensus
 		end
 	end
-
 	return Reward
 end
 
@@ -205,10 +198,23 @@ mdp = QuickMDP(
 	discount     = 0.95,            # γ
 	transition = T,
 	reward = R,
+	initialstate = rand(StateSpace),
 	isterminal = s -> s[1] == 26
 )
 
-γ = 0.95
-
 solver = ValueIterationSolver(max_iterations=1000, belres=1e-6, verbose=true)
 policy = solve(solver, mdp)
+
+# function simulate(policy, state)
+# 	p = Transitions[action(policy, state)]
+# end
+
+# init_state = rand(StateSpace) + 1
+# simulate(policy, init_state)
+
+#simulator = HistoryRecorder()
+
+simulator = RolloutSimulator()
+simulate(simulator, mdp, policy, s0 = rand(StateSpace))
+#sim(mdp, max_steps=100)
+stepthrough(mdp, policy, "s,a,r", max_steps=100)

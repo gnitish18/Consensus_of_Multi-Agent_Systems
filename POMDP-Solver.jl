@@ -12,15 +12,15 @@ using SpecialFunctions
 	r_wisdom::Real = 5
 	r_final_consensus::Real = 100
 	
-	# Transition probabilities
-	p_A_a0::Real = 0.3
-	p_A_a1::Real = 0.8
+	# # Transition probabilities
+	# p_A_a0::Real = 0.3
+	# p_A_a1::Real = 0.8
 
-	p_B_a0::Real = 0.7
-	p_B_a1::Real = 0.2
+	# p_B_a0::Real = 0.7
+	# p_B_a1::Real = 0.2
 	
-	p_C_a0::Real = 0.5
-	p_C_a1::Real = 0.5
+	# p_C_a0::Real = 0.5
+	# p_C_a1::Real = 0.5
 end
 
 params = ConsensusProblem()
@@ -36,11 +36,8 @@ n_agents = 3
 𝒜 = [IGNOREₐ, INTERACTₐ]
 𝒜𝒢 = [A, B, C]
 
-StateSpace = [i for i in 0:n_states^n_agents-1]
-ActionSpace = [i for i in 0:n_actions^n_agents-1]
-
-All_States = [(i-1)*n_states^2 + (j-1)*n_states + (k-1) for i in 1:n_states for j in 1:n_states for k in 1:n_states]
-All_Actions = [(i-1)*n_actions^2 + (j-1)*n_actions + (k-1) for i in 1:n_actions for j in 1:n_actions for k in 1:n_actions]
+StateSpace = [(i-1)*n_states^2 + (j-1)*n_states + (k-1) for i in 1:n_states for j in 1:n_states for k in 1:n_states]
+ActionSpace = [(i-1)*n_actions^2 + (j-1)*n_actions + (k-1) for i in 1:n_actions for j in 1:n_actions for k in 1:n_actions]
 
 function decode_States(val)
 	val = val - 1
@@ -61,15 +58,6 @@ function decode_Actions(val)
 	end
 	return Actions
 end
-
-# println(All_States)
-# for i in 1:n_states^n_agents
-# 	println(All_States[i], " ", decode_States(i))
-# end
-# println(" \n")
-# for i in 1:n_actions^n_agents
-# 	print(decode_Actions(i))
-# end
 
 function T(s, a, s̃)
 	p_A[1] = params.p_A_a0
