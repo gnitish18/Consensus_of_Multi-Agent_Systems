@@ -1,8 +1,10 @@
 using POMDPs, QuickPOMDPs, POMDPPolicies, POMDPModelTools
 using Parameters, Random
-using Distributions
 using SparseArrays
 using Combinatorics
+using SpecialFunctions
+using LinearAlgebra
+using DiscreteValueIteration
 using Plots; default(fontfamily="Computer Modern", framestyle=:box) # LaTex-style
 
 @with_kw struct ConsensusProblem
@@ -29,6 +31,7 @@ params = ConsensusProblem()
 n_states = 3
 n_actions = 2
 n_agents = 3
+Transitions = 0
 @enum State SHAPE_1ₛ SHAPE_2ₛ SHAPE_3ₛ
 @enum Action IGNOREₐ INTERACTₐ 
 @enum Agent A B C
@@ -72,15 +75,15 @@ end
 # 	print(decode_Actions(i))
 # end
 
-function T(StateSpace, ActionSpace)
-	s = length(StateSpace) #number of states
-	a = length(ActionSpace) #number of actions
+function Transition_Matrix(StateSpace, ActionSpace)
+	s = length(StateSpace) 		# number of states
+	a = length(ActionSpace) 	# number of actions
 	Transitions = [zeros(s,s) for k in 1:a]
 	for k in 1:a
-		Transitions[k][:,1] = rand(Uniform(0,1),s)
+		Transitions[k][:,1] = rand(0:0.0001:1,s)
 		for i in 1:s
 			for j in shuffle(2:s-1)
-				Transitions[k][i,j] = rand(Uniform(0, 1 - sum(Transitions[k][i,(Transitions[k][i,:].!=0)])));
+				Transitions[k][i,j] = rand(0:0.0001:1 - sum(Transitions[k][i,(Transitions[k][i,:].!=0)]));
 			end
 		end
 		Transitions[k][:,end] = 1 .- sum(Transitions[k],dims=2)
@@ -90,9 +93,18 @@ function T(StateSpace, ActionSpace)
 			Transitions[k][i,:] = normalize(Transitions[k][i,:],1)
 		end
 	end
-	Transitions = [sparse(Transitions[k]) for k in 1:a]
+	#Transitions = [sparse(Transitions[k]) for k in 1:a]
 	return Transitions
 end
+
+function T(s, a)
+	#@show Transitions[a][s,:]
+	return Transitions[a][s,:]
+	#return #SparseCat([SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ], [(1-p_A[2])/2, (1-p_A[2])/2, p_A[2]])
+	@show SparseCat(StateSpace, [1/27 for i in 1:27])
+	return SparseCat(StateSpace, [1/27 for i in 1:27])
+end
+
 #=
 function T(s, a, s̃)
 	p_A[1] = params.p_A_a0
@@ -184,31 +196,39 @@ function R(s, a, sp)
 	return Reward
 end
 
-struct BanditModel
-	B # vector of beta distributions
-end
+# struct BanditModel
+# 	B # vector of beta distributions
+# end
 
-mutable struct EpsilonGreedyExploration
-	ϵ # probability of random arm
-	α # exploration decay factor
-end
+# mutable struct EpsilonGreedyExploration
+# 	ϵ # probability of random arm
+# 	α # exploration decay factor
+# end
 
-function (π::EpsilonGreedyExploration)(model::BanditModel)
-	if rand() < π.ϵ
-		π.ϵ *= π.α
-	return rand(eachindex(model.B))
-	else
-		return argmax(mean.(model.B))
-	end
-end
+# function (π::EpsilonGreedyExploration)(model::BanditModel)
+# 	if rand() < π.ϵ
+# 		π.ϵ *= π.α
+# 	return rand(eachindex(model.B))
+# 	else
+# 		return argmax(mean.(model.B))
+# 	end
+# end
 
-R(25, 6, 27)
+Transitions = Transition_Matrix(StateSpace, ActionSpace)
 
-mdp = QuickPOMDP(
-    states       = StateSpace, 		# 𝒮
-    actions      = ActionSpace,		# 𝒜
-    discount     = 0.95,            # γ
+mdp = QuickMDP(
+	states       = StateSpace, 		# 𝒮
+	actions      = ActionSpace,		# 𝒜
+	discount     = 0.95,            # γ
 	transition = T,
 	reward = R,
 	isterminal = s -> s[1] > 0.5
 )
+
+γ = 0.95
+#mdp = DiscreteExplicitMDP(StateSpace, ActionSpace, T, R, γ)# [terminals = Set([0, 14,27])])
+
+T(25, 4)
+solver = ValueIterationSolver(max_iterations=100, belres=1e-6, verbose=true)
+@show policy = solve(solver, mdp)
+@show action(policy, 25)

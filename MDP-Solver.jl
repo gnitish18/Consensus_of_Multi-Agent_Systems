@@ -7,7 +7,7 @@ using SpecialFunctions
 @with_kw struct ConsensusProblem
 	# Rewards
 	r_state_change::Real = -10
-	r_interact::Real = -5
+	r_interact::Real = -50
 	r_interaction_consensus::Real = 10
 	r_wisdom::Real = 5
 	r_final_consensus::Real = 100
@@ -102,9 +102,25 @@ end
 
 function R(s, a, sp)
 	Reward = 0
-	States = decode_States(s)
-	Actions = decode_Actions(a)
-	S̃tates = decode_States(sp)
+	@show States = decode_States(s)
+	@show Actions = decode_Actions(a)
+	@show S̃tates = decode_States(sp)
+
+	# fl_terminal = 0
+	# for i in 1:length(States)-1
+	# 	for j in i+1:length(States)
+	# 		if States[i] != States[j]
+	# 			fl_terminal = 1
+	# 			break
+	# 		end
+	# 	end
+	# 	if fl_terminal == 1
+	# 		break
+	# 	end
+	# end
+	# if fl_terminal == 0
+	# 	Reward -= Inf
+	# end
 
 	# Huge reward for final Concensus
 	fl_consensus = 0
@@ -121,39 +137,40 @@ function R(s, a, sp)
 	end
 	if fl_consensus == 0
 		Reward += n_agents*params.r_final_consensus
-	end
-
-	# Penalty for State Change
-	State_changes = findall(x -> x != 0, States - S̃tates)
-	Reward += length(State_changes)*params.r_state_change
-
-	# Finding all interacting Agents
-	p = findall(x -> x == 1, Actions)	
-
-	fl_intr_con = 0
-	if length(p) == 1
-		# Self-interaction Reward
-		if States[p] != S̃tates[p]
-			Reward += params.r_wisdom
-		end
 	else
-		# Penalty for interaction
-		Reward += length(p)*params.r_interact
-		
-		# Reward if interacting agents come to a Consensus
-		for i in 1:length(p)-1
-			for j in i+1:length(p)
-				if States[p[i]] != States[p[j]]
-					fl_intr_con = 1
+
+		# Penalty for State Change
+		State_changes = findall(x -> x != 0, States - S̃tates)
+		Reward += length(State_changes)*params.r_state_change
+
+		# Finding all interacting Agents
+		p = findall(x -> x == 1, Actions)	
+
+		fl_intr_con = 0
+		if length(p) == 1
+			# Self-interaction Reward
+			if States[p] != S̃tates[p]
+				Reward += params.r_wisdom
+			end
+		else
+			# Penalty for interaction
+			Reward += length(p)*params.r_interact
+			
+			# Reward if interacting agents come to a Consensus
+			for i in 1:length(p)-1
+				for j in i+1:length(p)
+					if States[p[i]] != States[p[j]]
+						fl_intr_con = 1
+						break
+					end
+				end
+				if fl_intr_con == 1
 					break
 				end
 			end
-			if fl_intr_con == 1
-				break
+			if fl_intr_con == 0
+				Reward += length(p)*params.r_interaction_consensus
 			end
-		end
-		if fl_intr_con == 0
-			Reward += length(p)*params.r_interaction_consensus
 		end
 	end
 
@@ -178,24 +195,24 @@ end
 function (π::EpsilonGreedyExploration)(model::BanditModel)
 	if rand() < π.ϵ
 		π.ϵ *= π.α
-	return rand(eachindex(model.B))
+		return rand(eachindex(model.B))
 	else
 		return argmax(mean.(model.B))
 	end
 end
 
-#model = BanditModel(fill(Beta(1,2),3))
+model = BanditModel(fill(Beta(1,2),3))
 
-model(fill(Beta(),2))
-π = EpsilonGreedyExploration(0.3, 0.9)
+# model(fill(Beta(),2))
+πp = EpsilonGreedyExploration(0.3, 0.9)
 
-R(25, 6, 27)
+R(1, 6, 27)
 
-mdp = QuickPOMDP(
-    states       = StateSpace, 		# 𝒮
-    actions      = ActionSpace,		# 𝒜
-    discount     = 0.95,            # γ
-	transition = T,
-	reward = R,
-	isterminal = s -> s[1] > 0.5
-)
+# mdp = QuickPOMDP(
+#     states       = StateSpace, 		# 𝒮
+#     actions      = ActionSpace,		# 𝒜
+#     discount     = 0.95,            	# γ
+# 	transition = T,
+# 	reward = R,
+# 	isterminal = s -> s[1] > 0.5
+# )

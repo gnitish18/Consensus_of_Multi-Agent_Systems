@@ -3,7 +3,14 @@ using Plots
 using JuMP
 using GLPK
 
-𝒮 = [CIRCLEₛ, SQUAREₛ, TRIANGLEₛ]
+n_states = 3
+n_actions = 2
+n_agents = 3
+@enum State SHAPE_1ₛ SHAPE_2ₛ SHAPE_3ₛ
+@enum Action IGNOREₐ INTERACTₐ 
+@enum Agent A B C
+
+𝒮 = [SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ]
 𝒜 = [IGNOREₐ, INTERACTₐ]
 ℐ = [A, B, C]
 
@@ -78,13 +85,13 @@ struct POMG
     R # joint reward function
 end
 
-MDP = POMG(0.95, ℐ, 𝒮, 𝒜, T, R)
+# MDP = POMG(0.95, ℐ, 𝒮, 𝒜, T, R)
 
 function lookahead(𝒫::POMG, U, s, a)
     #𝒮, 𝒪, T, O, R, γ = 𝒫.𝒮, joint(𝒫.𝒪), 𝒫.T, 𝒫.O, 𝒫.R, 𝒫.γ
     𝒮, T, R, γ = 𝒫.𝒮, 𝒫.T, 𝒫.R, 𝒫.γ
     #u′ = sum(R(s,a,s′) + γ*T(s,a,s′)*sum(O(a,s′,o)*U(o,s′) for o in 𝒪) for s′ in 𝒮)
-    u′ = sum(R(s,a,s′) + γ*T(s,a,s′)*sum(O(a,s′,o)*U(o,s′) for o in 𝒪) for s′ in 𝒮)
+    u′ = sum(R(s,a,s′) + γ*T(s,a,s′)*U(s′) for s′ in 𝒮)
     return u′
 end
 
