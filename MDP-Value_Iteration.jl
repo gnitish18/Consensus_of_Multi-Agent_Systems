@@ -5,6 +5,7 @@ using Combinatorics
 using SpecialFunctions
 using LinearAlgebra
 using DiscreteValueIteration
+using Latexify
 using Plots; default(fontfamily="Computer Modern", framestyle=:box) # LaTex-style
 
 @with_kw struct ConsensusProblem
@@ -28,7 +29,7 @@ end
 
 params = ConsensusProblem()
 
-n_states = 3
+n_states = 5
 n_actions = 2
 n_agents = 3
 Transitions = 0
@@ -40,8 +41,23 @@ Transitions = 0
 𝒜 = [IGNOREₐ, INTERACTₐ]
 𝒜𝒢 = [A, B, C]
 
-StateSpace = [(i-1)*n_states^2 + (j-1)*n_states + (k-1) for i in 1:n_states for j in 1:n_states for k in 1:n_states]
-ActionSpace = [(i-1)*n_actions^2 + (j-1)*n_actions + (k-1) for i in 1:n_actions for j in 1:n_actions for k in 1:n_actions]
+StateSpace = [i for i in 0:n_states^n_agents-1]
+ActionSpace = [i for i in 0:n_actions^n_agents-1]
+#StateSpace = [(i-1)*n_states^2 + (j-1)*n_states + (k-1) for i in 1:n_states for j in 1:n_states for k in 1:n_states]
+#ActionSpace = [(i-1)*n_actions^2 + (j-1)*n_actions + (k-1) for i in 1:n_actions for j in 1:n_actions for k in 1:n_actions]
+
+# function encode_States()
+# 	s = []
+# 	for i in 1:n_states
+# 		t = 0
+# 		for j in 1:n_agents
+# 			t += (i-1)*n_states^(j-1)
+# 		end
+# 	end
+# 	@show StateSpace = [i for i in 1:s]
+# end
+
+# encode_States()
 
 function decode_States(val)
 	val = val - 1
@@ -99,37 +115,6 @@ function T(s, a)
  	return SparseCat(StateSpace, Transitions[a+1][s+1,:])
 
 end
-
-#=
-function T(s, a, s̃)
-	p_A[1] = params.p_A_a0
-	p_A[2] = params.p_A_a1
-	p_B[1] = params.p_B_a0
-	p_B[2] = params.p_B_a1	
-	p_C[1] = params.p_C_a0
-	p_C[2] = params.p_C_a1
-
-	for i in 1:3
-		if a == IGNOREₐ
-			if s == SHAPE_1ₛ
-				return SparseCat([SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ], [p_A[1], (1-p_A[1])/2, (1-p_A[1])/2])
-			elseif s == SHAPE_2ₛ
-				return SparseCat([SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ], [(1-p_A[1])/2, p_A[1], (1-p_A[1])/2])
-			elseif s == SHAPE_3ₛ
-				return SparseCat([SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ], [(1-p_A[1])/2, (1-p_A[1])/2, p_A[1]])
-			end
-		elseif a == INTERACTₐ
-			if s == SHAPE_1ₛ
-				return SparseCat([SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ], [p_A[2], (1-p_A[2])/2, (1-p_A[2])/2])
-			elseif s == SHAPE_2ₛ
-				return SparseCat([SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ], [(1-p_A[2])/2, p_A[2], (1-p_A[2])/2])
-			elseif s == SHAPE_3ₛ
-				return SparseCat([SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ], [(1-p_A[2])/2, (1-p_A[2])/2, p_A[2]])
-			end
-		end
-	end
-end
-=#
 
 function R(s, a, sp)
 	Reward = 0
@@ -205,16 +190,29 @@ mdp = QuickMDP(
 solver = ValueIterationSolver(max_iterations=1000, belres=1e-6, verbose=true)
 policy = solve(solver, mdp)
 
-# function simulate(policy, state)
-# 	p = Transitions[action(policy, state)]
-# end
+function simul(policy, state)
+	return rand(T(state, action(policy, state)))
+end
 
-# init_state = rand(StateSpace) + 1
-# simulate(policy, init_state)
+pre_state = rand(StateSpace) + 1
 
-#simulator = HistoryRecorder()
+function consensus(i)
+	state = decode_States(i)
+	n = length(unique(state))
+	if n == 1
+		return true
+	end
+	return false
+end
 
-simulator = RolloutSimulator()
-simulate(simulator, mdp, policy, s0 = rand(StateSpace))
-#sim(mdp, max_steps=100)
-stepthrough(mdp, policy, "s,a,r", max_steps=100)
+while !consensus(pre_state)
+	global pre_state = simul(policy, pre_state)
+	@show decode_States(pre_state)
+end
+
+# simulator = HistoryRecorder()
+
+# #simulator = RolloutSimulator()
+# simulate(simulator, mdp, policy)# s0 = rand(StateSpace))
+# #sim(mdp, max_steps=100)
+# stepthrough(mdp, policy, "s,a,r", max_steps=100)
