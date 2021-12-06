@@ -49,15 +49,12 @@ n_actions = 2
 # 𝒮 = {SHAPE_iₛ| for i in 1:n_agents}
 # 𝒜 = {IGNOREₐ, INTERACTₐ}
 # 𝒜𝒢 = {Aᵢ | i = 1:n_agents}
-
 # Set of States and Actions in combined form
 #	Eg: In case of 4 states for each agent, individual state of each agent can be 0, 1, 2, 3
 # 		For 3 agents, no. of possible states = 4^3 = 64
 # 		If the three agents have the states as [3, 0, 1]
 # 		The corresponding combined form will be (3*4^2 + 0*4^1 + 1*$^0 + 1) = 50
 #   The actions are also encoded similarly
-StateSpace = [i for i in 1:n_states^n_agents]
-ActionSpace = [i for i in 1:n_actions^n_agents]
 
 # The combined state is decoded into individual states for each agent 
 # 	Eg: 50 = (3*4^2 + 0*4^1 + 1*$^0 + 1) -> [3, 0, 1]
@@ -192,19 +189,6 @@ function R(s, a, sp)
 	return Reward
 end
 
-# Transition Matrix
-Transitions = Transition_Matrix(StateSpace, ActionSpace, n_agents)
-
-# Creating the MDP model
-mdp = QuickMDP(
-	states       = StateSpace, 		# 𝒮
-	actions      = ActionSpace,		# 𝒜
-	discount     = 0.95,            # γ
-	transition = T,
-	reward = R,
-	initialstate = rand(StateSpace)
-)
-
 # Sampling for Simulation based on the probability distribution of transition matrix
 function gen_sample(policy, state)
 	return sample(StateSpace, Weights(Transitions[action(policy, state)][state, :]))
@@ -260,73 +244,141 @@ function Simulation(state, policy, sim_no, type)
 	return Cum_Reward
 end
 
-# Consensus states
-Con_States = []
-for i in StateSpace
-	if consensus(i)
-		global Con_States = vcat(Con_States, i)
+function compute(n_ag, n_s, n_a, tim)
+	# Agents, States and Actions
+	global n_agents = n_ag
+	global n_states = n_s
+	global n_actions = n_a
+	# 𝒮 = {SHAPE_iₛ| for i in 1:n_agents}
+	# 𝒜 = {IGNOREₐ, INTERACTₐ}
+	# 𝒜𝒢 = {Aᵢ | i = 1:n_agents}
+
+	# Set of States and Actions in combined form
+	#	Eg: In case of 4 states for each agent, individual state of each agent can be 0, 1, 2, 3
+	# 		For 3 agents, no. of possible states = 4^3 = 64
+	# 		If the three agents have the states as [3, 0, 1]
+	# 		The corresponding combined form will be (3*4^2 + 0*4^1 + 1*$^0 + 1) = 50
+	#   The actions are also encoded similarly
+	global StateSpace = [i for i in 1:n_states^n_agents]
+	global ActionSpace = [i for i in 1:n_actions^n_agents]
+	global folder = string("Figures/", Dates.today(), "_", tim, "/Ag-St=", string(n_agents), "_", string(n_states))
+	mkpath(folder)
+
+	# Transition Matrix
+	global Transitions = Transition_Matrix(StateSpace, ActionSpace, n_agents)
+
+	# Creating the MDP model
+	global mdp = QuickMDP(
+		states       = StateSpace, 		# 𝒮
+		actions      = ActionSpace,		# 𝒜
+		discount     = 0.95,            # γ
+		transition = T,
+		reward = R,
+		initialstate = rand(StateSpace)
+	)
+		
+	# Consensus states
+	global Con_States = []
+	for i in StateSpace
+		if consensus(i)
+			global Con_States = vcat(Con_States, i)
+		end
 	end
+
+	# Generate a random initial state in which agents are not in consensus
+	global pre_state = rand(StateSpace[filter(x->!(x in Con_States), eachindex(StateSpace))])
+
+	# Cumulative rewards for each algorithm
+	global Rand_Cum_Reward = []
+	global ValIter_Cum_Reward = []
+
+	# Types of policies
+	global Types = ["Random_Policy", "Value_Iteration_Policy"]
+
+	# Random Policy 
+	global Random_policy = RandomPolicy(mdp);
+		
+	# Value Iteration
+	global ValIter_solver = ValueIterationSolver(max_iterations=1000, belres=1e-5, verbose=true);
+	global ValIter_policy = solve(ValIter_solver, mdp);
+
+	global n_simulations = 1000
+	# Simulating n_simulations times to check the performance of the algorithm
+	for i in 1:n_simulations
+		#println("\n Random Policy")
+		global Rand_Cum_Reward = vcat(Rand_Cum_Reward, Simulation(pre_state, Random_policy, i, Types[1]))
+
+		#println("\n ValIter Policy")
+		global ValIter_Cum_Reward = vcat(ValIter_Cum_Reward, Simulation(pre_state, ValIter_policy, i, Types[2]))
+	end
+
+	# Fitting a Gaussian curve for all the n_simulations
+	global fit_Random = fit(Normal, round.(Rand_Cum_Reward))
+	global fit_ValIter = fit(Normal, round.(ValIter_Cum_Reward))
+
+	# Plotting the performance metrics
+	plot(fit_Random, fillrange=0, fillalpha=0.5 , fillcolor=:red, label="Random Policy", legend = :topleft)
+	plot!(fit_Random, linealpha = 1, linecolor = :red, label = nothing)
+	plot!(fit_ValIter, fillrange=0, fillalpha=0.5 , fillcolor=:blue, label="Value Iteration Policy", legend = :topleft)
+	plot!(fit_ValIter, linealpha = 1, linecolor = :blue, label = nothing)
+	xlabel!("Cumulative Reward")
+	title!("Performance Comparison")
+	st = string(folder, "/MDP_Performance-", tim, "-", string(n_agents), "_", string(n_states), "_", string(n_actions), ".png")
+	savefig(st)
+	return [fit_Random, fit_ValIter]
 end
 
-# Generate a random initial state in which agents are not in consensus
-pre_state = rand(StateSpace[filter(x->!(x in Con_States), eachindex(StateSpace))])
+global tim = string(string(Dates.hour(Dates.now())),"-", string(Dates.minute(Dates.now())),"-", string(Dates.second(Dates.now())))
 
-# Cumulative rewards for each algorithm
-Rand_Cum_Reward = []
-ValIter_Cum_Reward = []
+Rand_mean = []
+Rand_stddev = []
+ValIter_mean = []
+ValIter_stddev = []
+folder = string("Figures/", Dates.today(), "_", tim)
 
-# Types of policies
-Types = ["Random_Policy", "Value_Iteration_Policy"]
+# for no_of_agents in 2:5
+# 	global data = compute(no_of_agents, 3, 2, tim)
+#  	global Rand_mean = vcat(Rand_mean, data[1].μ)
+# 	global Rand_stddev = vcat(Rand_stddev, data[1].σ)
+# 	global ValIter_mean = vcat(ValIter_mean, data[2].μ) 
+# 	global ValIter_stddev = vcat(ValIter_stddev, data[2].σ)
+# end
 
-# Random Policy 
-Random_policy = RandomPolicy(mdp);
-	
-# Value Iteration
-ValIter_solver = ValueIterationSolver(max_iterations=1000, belres=1e-5, verbose=true);
-ValIter_policy = solve(ValIter_solver, mdp);
+# plot(Rand_mean, label = "μ of Random Policy")
+# plot!(ValIter_mean, label = "μ of Val_Iter Policy")
+# xlabel!("Number of Agents")
+# title!("Mean")
+# st = string(folder, "/Mean", "-n_agents=", string(n_agents), ".png")
+# savefig(st)
 
-n_simulations = 10000
-# Simulating n_simulations times to check the performance of the algorithm
-for i in 1:n_simulations
-	#println("\n Random Policy")
-	global Rand_Cum_Reward = vcat(Rand_Cum_Reward, Simulation(pre_state, Random_policy, i, Types[1]))
+# plot(Rand_stddev, label = "σ of Random Policy")
+# plot!(ValIter_stddev, label = "σ of Val_Iter Policy")
+# xlabel!("Number of Agents")
+# ylabel!("Cumulative Reward")
+# title!("Standard Deviation")
+# st = string(folder, "/Stddev", "-n_agents=", string(n_agents), ".png")
+# savefig(st)
 
-	#println("\n ValIter Policy")
-	global ValIter_Cum_Reward = vcat(ValIter_Cum_Reward, Simulation(pre_state, ValIter_policy, i, Types[2]))
+for no_of_states in 2:3
+ 	global data = compute(3, no_of_states, 2, tim)
+ 	global Rand_mean = vcat(Rand_mean, data[1].μ)
+	global Rand_stddev = vcat(Rand_stddev, data[1].σ)
+	global ValIter_mean = vcat(ValIter_mean, data[2].μ) 
+	global ValIter_stddev = vcat(ValIter_stddev, data[2].σ)
 end
 
-# Fitting a Gaussian curve for all the n_simulations
-fit_Random = fit(Normal, round.(Rand_Cum_Reward))
-fit_ValIter = fit(Normal, round.(ValIter_Cum_Reward))
-
-# Plotting the performance metrics
-plot(fit_Random, fillrange=0, fillalpha=0.5 , fillcolor=:red, label="Random Policy", legend = :topleft)
-plot!(fit_Random, linealpha = 1, linecolor = :red, label = nothing)
-plot!(fit_ValIter, fillrange=0, fillalpha=0.5 , fillcolor=:blue, label="Value Iteration Policy", legend = :topleft)
-plot!(fit_ValIter, linealpha = 1, linecolor = :blue, label = nothing)
-xlabel!("Cumulative Reward")
-title!("Performance Comparison")
-st = string(folder, "/MDP_Performance-", tim, "-", string(n_agents), "_", string(n_states), "_", string(n_actions), ".png")
+folder = string("Figures/", Dates.today(), "_", tim)
+plot(Rand_mean, label = "μ of Random Policy")
+plot!(ValIter_mean, label = "μ of Val_Iter Policy")
+xlabel!("Number of Agents")
+ylabel!("Cumulative Reward")
+title!("Mean")
+st = string(folder, "/Mean", "-n_states=", string(n_states), ".png")
 savefig(st)
 
-# function compute(n_states, n_actions, n_agents)
-# 	# Agents, States and Actions
-# 	n_agents = 3
-# 	n_states = 3
-# 	n_actions = 2
-# 	# 𝒮 = {SHAPE_iₛ| for i in 1:n_agents}
-# 	# 𝒜 = {IGNOREₐ, INTERACTₐ}
-# 	# 𝒜𝒢 = {Aᵢ | i = 1:n_agents}
-
-# 	# Set of States and Actions in combined form
-# 	#	Eg: In case of 4 states for each agent, individual state of each agent can be 0, 1, 2, 3
-# 	# 		For 3 agents, no. of possible states = 4^3 = 64
-# 	# 		If the three agents have the states as [3, 0, 1]
-# 	# 		The corresponding combined form will be (3*4^2 + 0*4^1 + 1*$^0 + 1) = 50
-# 	#   The actions are also encoded similarly
-# 	StateSpace = [i for i in 1:n_states^n_agents]
-# 	ActionSpace = [i for i in 1:n_actions^n_agents]
-# 	tim = string(string(Dates.hour(Dates.now())),"-", string(Dates.minute(Dates.now())),"-", string(Dates.second(Dates.now())))
-# 	folder = string("Figures/", Dates.today(), "_", tim, "/", string(n_states), "_", string(n_agents))
-# 	mkpath(folder)
-# end
+plot(Rand_stddev, label = "σ of Random Policy")
+plot!(ValIter_stddev, label = "σ of Val_Iter Policy")
+xlabel!("Number of Agents")
+title!("Standard Deviation")
+st = string(folder, "/Stddev", "-n_states=", string(n_states), ".png")
+savefig(st)
