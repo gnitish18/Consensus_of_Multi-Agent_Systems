@@ -22,22 +22,26 @@ params = ConsensusProblem()
 
 # Agents, States and Actions
 n_agents = 3
-n_states = 3
+n_states = 4
 n_actions = 2
 @enum Agent A B C
-@enum State SHAPE_1ₛ SHAPE_2ₛ SHAPE_3ₛ
+@enum State SHAPE_1ₛ SHAPE_2ₛ SHAPE_3ₛ SHAPE_4ₛ
 @enum Action IGNOREₐ INTERACTₐ 
-𝒮 = [SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ]
+𝒮 = [SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ, SHAPE_4ₛ]
 𝒜 = [IGNOREₐ, INTERACTₐ]
 𝒜𝒢 = [A, B, C]
 
 # Set of States and Actions in combined form
+#	Eg: In case of 4 states for each agent, individual state of each agent can be 0, 1, 2, 3
+# 		For 3 agents, no. of possible states = 4^3 = 64
+# 		If the three agents have the states as [3, 0, 1]
+# 		The corresponding combined form will be (3*4^2 + 0*4^1 + 1*$^0 + 1) = 50
+#   The actions are also encoded similarly
 StateSpace = [i for i in 1:n_states^n_agents]
 ActionSpace = [i for i in 1:n_actions^n_agents]
 
-# 
+# The combined state is decoded into individual states for each agent 
 function decode_States(val)
-	# converts to 0 to 26 
 	val = val - 1
 	States = zeros(Int, n_agents)
 	for i in 1:n_agents
@@ -47,9 +51,8 @@ function decode_States(val)
 	return States
 end
 
-# takes in 1 to 8
+# The combined action is decoded into individual actions for each agent 
 function decode_Actions(val)
-	# converts to 0 to 7 
 	val = val - 1
 	Actions = zeros(Int, n_agents)
 	for i in 1:n_agents
@@ -59,6 +62,9 @@ function decode_Actions(val)
 	return Actions
 end
 
+# Generates a Transition matrix for the state, action, new state combination
+# 	The Transition Matrix is a vector (size of action space) of matrices (size of state space x size of statespace)
+# 	Transition Matrix -> Transitions[action][state, new state]
 function Transition_Matrix(StateSpace, ActionSpace)
 	s = length(StateSpace) 		# number of states
 	a = length(ActionSpace) 	# number of actions
@@ -77,9 +83,16 @@ function Transition_Matrix(StateSpace, ActionSpace)
 		end
 		Transitions[k][:,end] = 1 .- sum(Transitions[k],dims=2)
 		Transitions[k] = round.(Transitions[k], digits=3)
+
 		for i in 1:s
+			# Circular shift to move the first values to the corresponding diagonals 
 			Transitions[k][i,:] = circshift(Transitions[k][i,:],i-1)
+			# Normalizing the elements so that the rows sum up to 1
 			Transitions[k][i,:] = normalize(Transitions[k][i,:],1)
+
+			# The terminal states are given deterministic probability = 1 for self transition
+			# The terminal states are the ones with consensus
+			# 	i.e, [0,0,0] -> 0, [1,1,1] -> 22, [2,2,2] -> 43 or [3,3,3] -> 64
 			state = decode_States(i)
 			n = length(unique(state))
 			if n == 1
@@ -91,12 +104,12 @@ function Transition_Matrix(StateSpace, ActionSpace)
 	return Transitions
 end
 
-# 1 to n
+# Transition function that generates a categorical distribution for a given state and action
 function T(s, a)
  	return SparseCat(StateSpace, Transitions[a][s,:])
-
 end
 
+# Reward function
 function R(s, a, sp)
 	Reward = 0
 	States = decode_States(s)
@@ -158,28 +171,25 @@ function R(s, a, sp)
 	return Reward
 end
 
+# Transition Matrix
 Transitions = Transition_Matrix(StateSpace, ActionSpace)
 
+# Creating the MDP model
 mdp = QuickMDP(
 	states       = StateSpace, 		# 𝒮
 	actions      = ActionSpace,		# 𝒜
 	discount     = 0.95,            # γ
 	transition = T,
 	reward = R,
-	initialstate = rand(StateSpace),
-	isterminal = s -> s[1] == 26
+	initialstate = rand(StateSpace)
 )
 
+# Sampling for Simulation based on the probability distribution of transition matrix
 function gen_sample(policy, state)
-	# Sample1 = rand(T(state, action(policy, state)))
 	return sample(StateSpace, Weights(Transitions[action(policy, state)][state, :]))
-	# if (Transitions[action(policy, state)][state, Sample1] > Transitions[action(policy, state)][state, Sample2])
-	# 	return Sample1
-	# else
-	 	return Sample2
-	# end
 end
 
+# Function to check if consensus is reached
 function consensus(i)
 	state = decode_States(i)
 	n = length(unique(state))
@@ -190,7 +200,9 @@ function consensus(i)
 end
 
 function Simulation(state, policy)
+	# Cumulative reward
 	Cum_Reward = 0
+
 	#@show decode_States(state)
 	iter = 0
 	while !consensus(state)
@@ -200,6 +212,9 @@ function Simulation(state, policy)
 		Cum_Reward += R(state, action(policy, state), new_state)
 		state = new_state
 		#@show decode_States(state)
+
+		# Terminate as no convergence to consensus
+		# 	Reasons due to the transition probabilities such that agents are stubborn
 		if iter > 1000000
 			println("Consensus not reached")
 			break
@@ -208,22 +223,30 @@ function Simulation(state, policy)
 	return Cum_Reward
 end
 
+# Consensus states
 Con_States = []
 for i in StateSpace
 	if consensus(i)
 		global Con_States = vcat(Con_States, i)
 	end
 end
+# Generate a random initial state in which agents are not in consensus
 pre_state = rand(StateSpace[filter(x->!(x in Con_States), eachindex(StateSpace))])
+
+# Cumulative rewards for each algorithm
 Rand_Cum_Reward = []
 ValIter_Cum_Reward = []
 
+# Random Policy 
 Random_policy = RandomPolicy(mdp);
 	
+# Value Iteration
 ValIter_solver = ValueIterationSolver(max_iterations=1000, belres=1e-5, verbose=true);
 ValIter_policy = solve(ValIter_solver, mdp);
 
-for i in 1:10000
+n_simulations = 10000
+# Simulating n_simulations times to check the performance of the algorithm
+for i in 1:n_simulations
 	#println("\n Random Policy")
 	global Rand_Cum_Reward = vcat(Rand_Cum_Reward, Simulation(pre_state, Random_policy))
 
@@ -231,13 +254,13 @@ for i in 1:10000
 	global ValIter_Cum_Reward = vcat(ValIter_Cum_Reward, Simulation(pre_state, ValIter_policy))
 end
 
-@show r = fit(Normal, round.(Rand_Cum_Reward))
-plot(r, fillrange=0, fillalpha=0.5 , fillcolor=:red, label="Random Policy")
-@show v = fit(Normal, round.(ValIter_Cum_Reward))
-plot!(v, fillrange=0, fillalpha=0.5 , fillcolor=:blue, label="Value Iteration Policy")
+# Fitting a Gaussian curve for all the n_simulations
+fit_Random = fit(Normal, round.(Rand_Cum_Reward))
+fit_ValIter = fit(Normal, round.(ValIter_Cum_Reward))
+
+# Plotting the performance metrics
+plot(fit_Random, fillrange=0, fillalpha=0.5 , fillcolor=:red, label="Random Policy")
+plot!(fit_ValIter, fillrange=0, fillalpha=0.5 , fillcolor=:blue, label="Value Iteration Policy")
 xlabel!("Cumulative Reward")
 title!("Performance Comparison")
-savefig("MDP.png")
-# MCTS_solver = MCTSSolver(n_iterations=50, depth=20, exploration_constant=5.0)
-# MCTS_policy = solve(MCTS_solver, mdp)
-# @show Simulation(pre_state, MCTS_policy)
+savefig("MDP_Performance.png")
