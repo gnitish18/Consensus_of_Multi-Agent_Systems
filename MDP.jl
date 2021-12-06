@@ -10,6 +10,20 @@ using Plots; default(fontfamily="Computer Modern", framestyle=:box)
 using Colors
 using StatsPlots
 
+@with_kw struct ConsensusProblem
+	# Rewards
+	r_state_change::Real = -1000
+	r_interact::Real = -500
+	r_interaction_consensus::Real = 100
+	r_wisdom::Real = 50
+	r_final_consensus::Real = 10000
+end
+
+params = ConsensusProblem()
+tim = string(string(Dates.hour(Dates.now())),"-", string(Dates.minute(Dates.now())),"-", string(Dates.second(Dates.now())))
+folder = string("Figures/", Dates.today(), "_", tim)
+mkpath(folder)
+
 function visualize(curr_state::Vector, curr_action::Vector, n_states, n_actions, n_agents, iter)
     θ = collect(0:2π/1000:2π)
     p = plot(cos.(θ), sin.(θ), aspect_raio=:equal, axis=nothing, label=nothing, bordercolor=:white, color=:white, linewidth=5, size=(500,500))
@@ -28,30 +42,13 @@ function visualize(curr_state::Vector, curr_action::Vector, n_states, n_actions,
     return p
 end
 
-@with_kw struct ConsensusProblem
-	# Rewards
-	r_state_change::Real = -1000
-	r_interact::Real = -500
-	r_interaction_consensus::Real = 100
-	r_wisdom::Real = 50
-	r_final_consensus::Real = 10000
-end
-
-params = ConsensusProblem()
-tim = string(string(Dates.hour(Dates.now())),"-", string(Dates.minute(Dates.now())),"-", string(Dates.second(Dates.now())))
-folder = string("Figures/", Dates.today(), "_", tim)
-mkpath(folder)
-
 # Agents, States and Actions
 n_agents = 3
-n_states = 4
+n_states = 3
 n_actions = 2
-@enum Agent A B C
-@enum State SHAPE_1ₛ SHAPE_2ₛ SHAPE_3ₛ SHAPE_4ₛ
-@enum Action IGNOREₐ INTERACTₐ 
-𝒮 = [SHAPE_1ₛ, SHAPE_2ₛ, SHAPE_3ₛ, SHAPE_4ₛ]
-𝒜 = [IGNOREₐ, INTERACTₐ]
-𝒜𝒢 = [A, B, C]
+# 𝒮 = {SHAPE_iₛ| for i in 1:n_agents}
+# 𝒜 = {IGNOREₐ, INTERACTₐ}
+# 𝒜𝒢 = {Aᵢ | i = 1:n_agents}
 
 # Set of States and Actions in combined form
 #	Eg: In case of 4 states for each agent, individual state of each agent can be 0, 1, 2, 3
@@ -64,7 +61,7 @@ ActionSpace = [i for i in 1:n_actions^n_agents]
 
 # The combined state is decoded into individual states for each agent 
 # 	Eg: 50 = (3*4^2 + 0*4^1 + 1*$^0 + 1) -> [3, 0, 1]
-function decode_States(val)
+function decode_States(val, n_states, n_agents)
 	val = val - 1
 	States = zeros(Int, n_agents)
 	for i in 1:n_agents
@@ -75,7 +72,7 @@ function decode_States(val)
 end
 
 # The combined action is decoded into individual actions for each agent 
-function decode_Actions(val)
+function decode_Actions(val, n_actions, n_agents)
 	val = val - 1
 	Actions = zeros(Int, n_agents)
 	for i in 1:n_agents
@@ -88,7 +85,7 @@ end
 # Generates a Transition matrix for the state, action, new state combination
 # 	The Transition Matrix is a vector (size of action space) of matrices (size of state space x size of statespace)
 # 	Transition Matrix -> Transitions[action][state, new state]
-function Transition_Matrix(StateSpace, ActionSpace)
+function Transition_Matrix(StateSpace, ActionSpace, n_agents)
 	s = length(StateSpace) 		# number of states
 	a = length(ActionSpace) 	# number of actions
 	Transitions = [zeros(s,s) for k in 1:a]
@@ -116,7 +113,7 @@ function Transition_Matrix(StateSpace, ActionSpace)
 			# The terminal states are given deterministic probability = 1 for self transition
 			# The terminal states are the ones with consensus
 			# 	i.e, [0,0,0] -> 0, [1,1,1] -> 22, [2,2,2] -> 43, or [3,3,3] -> 64
-			state = decode_States(i)
+			state = decode_States(i, s, n_agents)
 			n = length(unique(state))
 			if n == 1
 				Transitions[k][i,:] = zeros(s)
@@ -135,9 +132,9 @@ end
 # Reward function
 function R(s, a, sp)
 	Reward = 0
-	States = decode_States(s)
-	Actions = decode_Actions(a)
-	S̃tates = decode_States(sp)
+	States = decode_States(s, n_states, n_agents)
+	Actions = decode_Actions(a, n_actions, n_agents)
+	S̃tates = decode_States(sp, n_states, n_agents)
 
 	# Flag for final consensus
 	fl_consensus = 0	
@@ -196,7 +193,7 @@ function R(s, a, sp)
 end
 
 # Transition Matrix
-Transitions = Transition_Matrix(StateSpace, ActionSpace)
+Transitions = Transition_Matrix(StateSpace, ActionSpace, n_agents)
 
 # Creating the MDP model
 mdp = QuickMDP(
@@ -215,7 +212,7 @@ end
 
 # Function to check if consensus is reached
 function consensus(i)
-	state = decode_States(i)
+	state = decode_States(i, n_states, n_agents)
 	n = length(unique(state))
 	if n == 1
 		return true
@@ -228,7 +225,7 @@ function Simulation(state, policy, sim_no, type)
 	Cum_Reward = 0
 	anim = Animation()
 	
-	#@show decode_States(state)
+	#@show decode_States(state, n_states, n_agents)
 	iter = 0
 	while !consensus(state)
 		iter += 1
@@ -239,7 +236,7 @@ function Simulation(state, policy, sim_no, type)
 
 		# Generate plots and frames for gif
 		if sim_no == 1
-			plt = visualize(decode_States(state), decode_Actions(action(policy, state)), n_states, n_actions, n_agents, iter)
+			plt = visualize(decode_States(state, n_states, n_agents), decode_Actions(action(policy, state), n_states, n_agents), n_states, n_actions, n_agents, iter)
 			plot(plt)
 			frame(anim, plt)
 			st = string(folder, "/Sim_", tim, "-", string(type), "-", string(iter), "_", string(state), "_", string(action(policy,state)))
@@ -257,7 +254,7 @@ function Simulation(state, policy, sim_no, type)
 	# Generate gif
 	if sim_no == 1
 		st = string(folder, "/Sim_", tim, "-", string(type),".gif")
-		gif(anim, st)
+		gif(anim, st, fps = 1)
 	end
 		
 	return Cum_Reward
@@ -303,9 +300,33 @@ fit_Random = fit(Normal, round.(Rand_Cum_Reward))
 fit_ValIter = fit(Normal, round.(ValIter_Cum_Reward))
 
 # Plotting the performance metrics
-plot(fit_Random, fillrange=0, fillalpha=0.5 , fillcolor=:red, label="Random Policy")
-plot!(fit_ValIter, fillrange=0, fillalpha=0.5 , fillcolor=:blue, label="Value Iteration Policy")
+plot(fit_Random, fillrange=0, fillalpha=0.5 , fillcolor=:red, label="Random Policy", legend = :topleft)
+plot!(fit_Random, linealpha = 1, linecolor = :red, label = nothing)
+plot!(fit_ValIter, fillrange=0, fillalpha=0.5 , fillcolor=:blue, label="Value Iteration Policy", legend = :topleft)
+plot!(fit_ValIter, linealpha = 1, linecolor = :blue, label = nothing)
 xlabel!("Cumulative Reward")
 title!("Performance Comparison")
 st = string(folder, "/MDP_Performance-", tim, "-", string(n_agents), "_", string(n_states), "_", string(n_actions), ".png")
 savefig(st)
+
+# function compute(n_states, n_actions, n_agents)
+# 	# Agents, States and Actions
+# 	n_agents = 3
+# 	n_states = 3
+# 	n_actions = 2
+# 	# 𝒮 = {SHAPE_iₛ| for i in 1:n_agents}
+# 	# 𝒜 = {IGNOREₐ, INTERACTₐ}
+# 	# 𝒜𝒢 = {Aᵢ | i = 1:n_agents}
+
+# 	# Set of States and Actions in combined form
+# 	#	Eg: In case of 4 states for each agent, individual state of each agent can be 0, 1, 2, 3
+# 	# 		For 3 agents, no. of possible states = 4^3 = 64
+# 	# 		If the three agents have the states as [3, 0, 1]
+# 	# 		The corresponding combined form will be (3*4^2 + 0*4^1 + 1*$^0 + 1) = 50
+# 	#   The actions are also encoded similarly
+# 	StateSpace = [i for i in 1:n_states^n_agents]
+# 	ActionSpace = [i for i in 1:n_actions^n_agents]
+# 	tim = string(string(Dates.hour(Dates.now())),"-", string(Dates.minute(Dates.now())),"-", string(Dates.second(Dates.now())))
+# 	folder = string("Figures/", Dates.today(), "_", tim, "/", string(n_states), "_", string(n_agents))
+# 	mkpath(folder)
+# end
