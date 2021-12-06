@@ -32,8 +32,8 @@ end
 	# Rewards
 	r_state_change::Real = -1000
 	r_interact::Real = -500
-	r_interaction_consensus::Real = 100
-	r_wisdom::Real = 50
+	r_interaction_consensus::Real = 1000	#100
+	r_wisdom::Real = -50
 	r_final_consensus::Real = 10000
 end
 
@@ -93,34 +93,39 @@ function Transition_Matrix(StateSpace, ActionSpace)
 	a = length(ActionSpace) 	# number of actions
 	Transitions = [zeros(s,s) for k in 1:a]
 	for k in 1:a
-		Transitions[k][:,1] = rand(0:0.0001:1,s)
-		for i in 1:s
-			for j in shuffle(2:s-1)
-				lim = 1 - sum(Transitions[k][i,(Transitions[k][i,:].!=0)])
-				if lim > 0
-					Transitions[k][i,j] = rand(0:0.0001:lim)
-				else
-					Transitions[k][i,j] = 0
-				end	
+		actions = decode_Actions(k)
+		if sum(actions) <= 1
+			Transitions[k][:,:] = Matrix(I, s, s)
+		else
+			Transitions[k][:,1] = rand(0:0.0001:1,s)
+			for i in 1:s
+				for j in shuffle(2:s-1)
+					lim = 1 - sum(Transitions[k][i,(Transitions[k][i,:].!=0)])
+					if lim > 0
+						Transitions[k][i,j] = rand(0:0.0001:lim)
+					else
+						Transitions[k][i,j] = 0
+					end	
+				end
 			end
-		end
-		Transitions[k][:,end] = 1 .- sum(Transitions[k],dims=2)
-		Transitions[k] = round.(Transitions[k], digits=3)
+			Transitions[k][:,end] = 1 .- sum(Transitions[k],dims=2)
+			Transitions[k] = round.(Transitions[k], digits=3)
 
-		for i in 1:s
-			# Circular shift to move the first values to the corresponding diagonals 
-			Transitions[k][i,:] = circshift(Transitions[k][i,:],i-1)
-			# Normalizing the elements so that the rows sum up to 1
-			Transitions[k][i,:] = normalize(Transitions[k][i,:],1)
+			for i in 1:s
+				# Circular shift to move the first values to the corresponding diagonals 
+				Transitions[k][i,:] = circshift(Transitions[k][i,:],i-1)
+				# Normalizing the elements so that the rows sum up to 1
+				Transitions[k][i,:] = normalize(Transitions[k][i,:],1)
 
-			# The terminal states are given deterministic probability = 1 for self transition
-			# The terminal states are the ones with consensus
-			# 	i.e, [0,0,0] -> 0, [1,1,1] -> 22, [2,2,2] -> 43, or [3,3,3] -> 64
-			state = decode_States(i)
-			n = length(unique(state))
-			if n == 1
-				Transitions[k][i,:] = zeros(s)
-				Transitions[k][i,i] = 1
+				# The terminal states are given deterministic probability = 1 for self transition
+				# The terminal states are the ones with consensus
+				# 	i.e, [0,0,0] -> 0, [1,1,1] -> 22, [2,2,2] -> 43, or [3,3,3] -> 64
+				state = decode_States(i)
+				n = length(unique(state))
+				if n == 1
+					Transitions[k][i,:] = zeros(s)
+					Transitions[k][i,i] = 1
+				end
 			end
 		end
 	end
@@ -162,7 +167,8 @@ function R(s, a, sp)
 	Reward += length(State_changes)*params.r_state_change
 
 	# Finding all interacting Agents
-	p = findall(x -> x == 1, Actions)	
+	q = findall(x -> x == 1, Actions)
+	p = findall(x -> x == 0, Actions)	
 
 	# Flag for consensus of interacting agents
 	fl_intr_con = 0
@@ -237,6 +243,8 @@ function Simulation(state, policy, sim_no, type)
 		Cum_Reward += R(state, action(policy, state), new_state)
 		state = new_state
 
+		println(decode_States(state), decode_Actions(action(policy, state)))
+
 		# Generate plots and frames for gif
 		if sim_no == 1
 			plt = visualize(decode_States(state), decode_Actions(action(policy, state)), n_states, n_actions, n_agents, iter)
@@ -253,7 +261,7 @@ function Simulation(state, policy, sim_no, type)
 			break
 		end
 	end
-	
+	println(iter)
 	# Generate gif
 	if sim_no == 1
 		st = string(folder, "/Sim_", tim, "-", string(type),".gif")
@@ -288,7 +296,7 @@ Random_policy = RandomPolicy(mdp);
 ValIter_solver = ValueIterationSolver(max_iterations=1000, belres=1e-5, verbose=true);
 ValIter_policy = solve(ValIter_solver, mdp);
 
-n_simulations = 10000
+n_simulations = 100
 # Simulating n_simulations times to check the performance of the algorithm
 for i in 1:n_simulations
 	#println("\n Random Policy")
@@ -303,8 +311,8 @@ fit_Random = fit(Normal, round.(Rand_Cum_Reward))
 fit_ValIter = fit(Normal, round.(ValIter_Cum_Reward))
 
 # Plotting the performance metrics
-plot(fit_Random, fillrange=0, fillalpha=0.5 , fillcolor=:red, label="Random Policy")
-plot!(fit_ValIter, fillrange=0, fillalpha=0.5 , fillcolor=:blue, label="Value Iteration Policy")
+plot(fit_Random, fillrange=0, fillalpha=0.5 , fillcolor=:red, label="Random Policy", legend = :topleft)
+plot!(fit_ValIter, fillrange=0, fillalpha=0.5 , fillcolor=:blue, label="Value Iteration Policy", legend = :topleft)
 xlabel!("Cumulative Reward")
 title!("Performance Comparison")
 st = string(folder, "/MDP_Performance-", tim, "-", string(n_agents), "_", string(n_states), "_", string(n_actions), ".png")
