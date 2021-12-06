@@ -243,7 +243,7 @@ function Simulation(state, policy, sim_no, type)
 		Cum_Reward += R(state, action(policy, state), new_state)
 		state = new_state
 
-		println(decode_States(state), decode_Actions(action(policy, state)))
+		#println(decode_States(state), decode_Actions(action(policy, state)))
 
 		# Generate plots and frames for gif
 		if sim_no == 1
@@ -261,7 +261,7 @@ function Simulation(state, policy, sim_no, type)
 			break
 		end
 	end
-	println(iter)
+	#println(iter)
 	# Generate gif
 	if sim_no == 1
 		st = string(folder, "/Sim_", tim, "-", string(type),".gif")
@@ -296,7 +296,7 @@ Random_policy = RandomPolicy(mdp);
 ValIter_solver = ValueIterationSolver(max_iterations=1000, belres=1e-5, verbose=true);
 ValIter_policy = solve(ValIter_solver, mdp);
 
-n_simulations = 100
+n_simulations = 1000
 # Simulating n_simulations times to check the performance of the algorithm
 for i in 1:n_simulations
 	#println("\n Random Policy")
