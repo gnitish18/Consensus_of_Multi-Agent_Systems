@@ -1,7 +1,6 @@
 using POMDPs, QuickPOMDPs, POMDPPolicies, POMDPModelTools, POMDPSimulators
 using Parameters, Random
 using StatsBase
-#using SpecialFunctions
 using LinearAlgebra
 using DiscreteValueIteration
 using MCTS
@@ -11,11 +10,11 @@ using StatsPlots
 
 @with_kw struct ConsensusProblem
 	# Rewards
-	r_state_change::Real = -1000			#-100
-	r_interact::Real = -500					#-50
-	r_interaction_consensus::Real = 100		#100
-	r_wisdom::Real = 50						#50
-	r_final_consensus::Real = 10000			#1000
+	r_state_change::Real = -1000
+	r_interact::Real = -500
+	r_interaction_consensus::Real = 100
+	r_wisdom::Real = 50
+	r_final_consensus::Real = 10000
 end
 
 params = ConsensusProblem()
@@ -41,6 +40,7 @@ StateSpace = [i for i in 1:n_states^n_agents]
 ActionSpace = [i for i in 1:n_actions^n_agents]
 
 # The combined state is decoded into individual states for each agent 
+# 	Eg: 50 = (3*4^2 + 0*4^1 + 1*$^0 + 1) -> [3, 0, 1]
 function decode_States(val)
 	val = val - 1
 	States = zeros(Int, n_agents)
@@ -92,7 +92,7 @@ function Transition_Matrix(StateSpace, ActionSpace)
 
 			# The terminal states are given deterministic probability = 1 for self transition
 			# The terminal states are the ones with consensus
-			# 	i.e, [0,0,0] -> 0, [1,1,1] -> 22, [2,2,2] -> 43 or [3,3,3] -> 64
+			# 	i.e, [0,0,0] -> 0, [1,1,1] -> 22, [2,2,2] -> 43, or [3,3,3] -> 64
 			state = decode_States(i)
 			n = length(unique(state))
 			if n == 1
@@ -168,6 +168,7 @@ function R(s, a, sp)
 			Reward += length(p)*params.r_interaction_consensus
 		end
 	end
+
 	return Reward
 end
 
@@ -199,7 +200,7 @@ function consensus(i)
 	return false
 end
 
-function Simulation(state, policy)
+function Simulation(state, policy, sim_no, type)
 	# Cumulative reward
 	Cum_Reward = 0
 
@@ -208,13 +209,12 @@ function Simulation(state, policy)
 	while !consensus(state)
 		iter += 1
 		new_state = gen_sample(policy, state)
-		#@show R(state, action(policy, state), new_state)
 		Cum_Reward += R(state, action(policy, state), new_state)
 		state = new_state
 		#@show decode_States(state)
 
 		# Terminate as no convergence to consensus
-		# 	Reasons due to the transition probabilities such that agents are stubborn
+		# 	Reason: Transition probabilities are such that agents are stubborn (High (or 1) self-transition probability)
 		if iter > 1000000
 			println("Consensus not reached")
 			break
@@ -230,12 +230,16 @@ for i in StateSpace
 		global Con_States = vcat(Con_States, i)
 	end
 end
+
 # Generate a random initial state in which agents are not in consensus
 pre_state = rand(StateSpace[filter(x->!(x in Con_States), eachindex(StateSpace))])
 
 # Cumulative rewards for each algorithm
 Rand_Cum_Reward = []
 ValIter_Cum_Reward = []
+
+# Types of policies
+Types = ["Random Policy", "Value Iteration Policy"]
 
 # Random Policy 
 Random_policy = RandomPolicy(mdp);
@@ -248,10 +252,10 @@ n_simulations = 10000
 # Simulating n_simulations times to check the performance of the algorithm
 for i in 1:n_simulations
 	#println("\n Random Policy")
-	global Rand_Cum_Reward = vcat(Rand_Cum_Reward, Simulation(pre_state, Random_policy))
+	global Rand_Cum_Reward = vcat(Rand_Cum_Reward, Simulation(pre_state, Random_policy, i, Types[1]))
 
 	#println("\n ValIter Policy")
-	global ValIter_Cum_Reward = vcat(ValIter_Cum_Reward, Simulation(pre_state, ValIter_policy))
+	global ValIter_Cum_Reward = vcat(ValIter_Cum_Reward, Simulation(pre_state, ValIter_policy, i, Types[2]))
 end
 
 # Fitting a Gaussian curve for all the n_simulations
@@ -263,4 +267,4 @@ plot(fit_Random, fillrange=0, fillalpha=0.5 , fillcolor=:red, label="Random Poli
 plot!(fit_ValIter, fillrange=0, fillalpha=0.5 , fillcolor=:blue, label="Value Iteration Policy")
 xlabel!("Cumulative Reward")
 title!("Performance Comparison")
-savefig("MDP_Performance.png")
+savefig("Figures/MDP_Performance.png")
