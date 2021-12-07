@@ -155,7 +155,7 @@ function R(s, a, sp)
 	Reward += length(State_changes)*params.r_state_change
 
 	# Finding all interacting Agents
-	p = findall(x -> x == 1, Actions)	
+	p = findall(x -> x == 0, Actions)	
 
 	# Flag for consensus of interacting agents
 	fl_intr_con = 0
