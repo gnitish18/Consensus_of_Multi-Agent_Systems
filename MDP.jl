@@ -12,7 +12,7 @@ using Dates
 @with_kw struct ConsensusProblem
 	# Rewards
 	r_state_change::Real = -1000
-	r_interact::Real = -500
+	r_no_interact::Real = -500
 	r_interaction_consensus::Real = 100
 	r_wisdom::Real = 50
 	r_final_consensus::Real = 10000
@@ -165,8 +165,8 @@ function R(s, a, sp)
 			Reward += params.r_wisdom
 		end
 	else
-		# Penalty for interaction
-		Reward += length(p)*params.r_interact
+		# Penalty for no interaction
+		Reward += length(p)*params.r_no_interact
 		
 		# Reward if interacting agents come to a Consensus
 		for i in 1:length(p)-1
@@ -333,38 +333,36 @@ Ag_Rand_mean = []
 Ag_Rand_stddev = []
 Ag_ValIter_mean = []
 Ag_ValIter_stddev = []
-folder = string("Figures/", Dates.today(), "_", tim)
 
 for no_of_agents in 2:5
 	global data = compute(no_of_agents, 3, 2, tim)
- 	global Rand_mean = vcat(Ag_Rand_mean, data[1].μ)
-	global Rand_stddev = vcat(Ag_Rand_stddev, data[1].σ)
-	global ValIter_mean = vcat(Ag_ValIter_mean, data[2].μ) 
-	global ValIter_stddev = vcat(Ag_ValIter_stddev, data[2].σ)
+ 	global Ag_Rand_mean = vcat(Ag_Rand_mean, data[1].μ)
+	global Ag_Rand_stddev = vcat(Ag_Rand_stddev, data[1].σ)
+	global Ag_ValIter_mean = vcat(Ag_ValIter_mean, data[2].μ) 
+	global Ag_ValIter_stddev = vcat(Ag_ValIter_stddev, data[2].σ)
 end
 
 folder = string("Figures/", Dates.today(), "_", tim)
-plot([2:5], Ag_Rand_mean, label = "μ of Random Policy", linecolor = :red, linewidth = 2, legend = :bottomleft)
-scatter!([2:5], Ag_Rand_mean, label = nothing, markercolor = :blue)
-plot!([2:5], Ag_ValIter_mean, label = "μ of Val_Iter Policy", linecolor = :blue, linewidth = 2, legend = :bottomleft)
-scatter!([2:5], Ag_ValIter_mean, label = nothing, markercolor = :blue)
+plot([i for i in 2:5], Ag_Rand_mean, label = "μ of Random Policy", linecolor = :red, linewidth = 2, legend = :bottomleft)
+scatter!([i for i in 2:5], Ag_Rand_mean, label = nothing, markercolor = :blue)
+plot!([i for i in 2:5], Ag_ValIter_mean, label = "μ of Val_Iter Policy", linecolor = :blue, linewidth = 2, legend = :bottomleft)
+scatter!([i for i in 2:5], Ag_ValIter_mean, label = nothing, markercolor = :blue)
 xlabel!("Number of Agents")
 ylabel!("Cumulative Reward")
 title!("Mean")
 st = string(folder, "/Mean", "-n_agents=", string(n_agents), ".png")
 savefig(st)
 
-plot([2:5], Ag_Rand_stddev, label = "σ of Random Policy", linecolor = :red, linewidth = 2, legend = :topleft)
-scatter!([2:5], Ag_Rand_stddev, label = nothing, markercolor = :red)
-plot!([2:5], Ag_ValIter_stddev, label = "σ of Val_Iter Policy", linecolor = :blue, linewidth = 2, legend = :topleft)
-scatter!([2:5], Ag_ValIter_stddev, label = nothing, markercolor = :blue)
+plot([i for i in 2:5], Ag_Rand_stddev, label = "σ of Random Policy", linecolor = :red, linewidth = 2, legend = :topleft)
+scatter!([i for i in 2:5], Ag_Rand_stddev, label = nothing, markercolor = :red)
+plot!([i for i in 2:5], Ag_ValIter_stddev, label = "σ of Val_Iter Policy", linecolor = :blue, linewidth = 2, legend = :topleft)
+scatter!([i for i in 2:5], Ag_ValIter_stddev, label = nothing, markercolor = :blue)
 xlabel!("Number of Agents")
 ylabel!("Cumulative Reward")
 title!("Standard Deviation")
 st = string(folder, "/Stddev", "-n_agents=", string(n_agents), ".png")
 savefig(st)
 
-folder = string("Figures/", Dates.today(), "_", tim)
 St_Rand_mean = []
 St_Rand_stddev = []
 St_ValIter_mean = []
@@ -372,26 +370,27 @@ St_ValIter_stddev = []
 
 for no_of_states in 2:5
  	global data = compute(3, no_of_states, 2, tim)
- 	global St_Rand_mean = vcat(Rand_mean, data[1].μ)
-	global St_Rand_stddev = vcat(Rand_stddev, data[1].σ)
-	global St_ValIter_mean = vcat(ValIter_mean, data[2].μ) 
-	global St_ValIter_stddev = vcat(ValIter_stddev, data[2].σ)
+ 	global St_Rand_mean = vcat(St_Rand_mean, data[1].μ)
+	global St_Rand_stddev = vcat(St_Rand_stddev, data[1].σ)
+	global St_ValIter_mean = vcat(St_ValIter_mean, data[2].μ) 
+	global St_ValIter_stddev = vcat(St_ValIter_stddev, data[2].σ)
 end
 
-plot([2:5], St_Rand_mean, label = "μ of Random Policy", linecolor = :red, linewidth = 2, legend = :bottomleft)
-scatter!([2:5], St_Rand_mean, label = nothing, markercolor = :red)
-plot!([2:5], St_ValIter_mean, label = "μ of Val_Iter Policy", linecolor = :blue, linewidth = 2, legend = :bottomleft)
-scatter!([2:5], St_ValIter_mean, label = nothing, markercolor = :blue)
+folder = string("Figures/", Dates.today(), "_", tim)
+plot([i for i in 2:5], St_Rand_mean, label = "μ of Random Policy", linecolor = :red, linewidth = 2, legend = :bottomleft)
+scatter!([i for i in 2:5], St_Rand_mean, label = nothing, markercolor = :red)
+plot!([i for i in 2:5], St_ValIter_mean, label = "μ of Val_Iter Policy", linecolor = :blue, linewidth = 2, legend = :bottomleft)
+scatter!([i for i in 2:5], St_ValIter_mean, label = nothing, markercolor = :blue)
 xlabel!("Number of Agents")
 ylabel!("Cumulative Reward")
 title!("Mean")
 st = string(folder, "/Mean", "-n_states=", string(n_states), ".png")
 savefig(st)
 
-plot([2:5], St_Rand_stddev, label = "σ of Random Policy", linecolor = :red, linewidth = 2, legend = :topleft)
-scatter!([2:5], St_Rand_stddev, label = nothing, markercolor = :red)
-plot!([2:5], St_ValIter_stddev, label = "σ of Val_Iter Policy", linecolor = :blue, linewidth = 2, legend = :topleft)
-scatter!([2:5], St_ValIter_stddev, label = nothing, markercolor = :blue)
+plot([i for i in 2:5], St_Rand_stddev, label = "σ of Random Policy", linecolor = :red, linewidth = 2, legend = :topleft)
+scatter!([i for i in 2:5], St_Rand_stddev, label = nothing, markercolor = :red)
+plot!([i for i in 2:5], St_ValIter_stddev, label = "σ of Val_Iter Policy", linecolor = :blue, linewidth = 2, legend = :topleft)
+scatter!([i for i in 2:5], St_ValIter_stddev, label = nothing, markercolor = :blue)
 xlabel!("Number of Agents")
 ylabel!("Cumulative Reward")
 title!("Standard Deviation")
