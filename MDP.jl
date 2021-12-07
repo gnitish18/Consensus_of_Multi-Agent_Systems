@@ -344,7 +344,7 @@ end
 
 folder = string("Figures/", Dates.today(), "_", tim)
 plot([i for i in 2:5], Ag_Rand_mean, label = "μ of Random Policy", linecolor = :red, linewidth = 2, legend = :bottomleft)
-scatter!([i for i in 2:5], Ag_Rand_mean, label = nothing, markercolor = :blue)
+scatter!([i for i in 2:5], Ag_Rand_mean, label = nothing, markercolor = :red)
 plot!([i for i in 2:5], Ag_ValIter_mean, label = "μ of Val_Iter Policy", linecolor = :blue, linewidth = 2, legend = :bottomleft)
 scatter!([i for i in 2:5], Ag_ValIter_mean, label = nothing, markercolor = :blue)
 xlabel!("Number of Agents")
@@ -381,7 +381,7 @@ plot([i for i in 2:5], St_Rand_mean, label = "μ of Random Policy", linecolor = 
 scatter!([i for i in 2:5], St_Rand_mean, label = nothing, markercolor = :red)
 plot!([i for i in 2:5], St_ValIter_mean, label = "μ of Val_Iter Policy", linecolor = :blue, linewidth = 2, legend = :bottomleft)
 scatter!([i for i in 2:5], St_ValIter_mean, label = nothing, markercolor = :blue)
-xlabel!("Number of States")
+xlabel!("Number of Opinions")
 ylabel!("Cumulative Reward")
 title!("Mean")
 st = string(folder, "/Mean", "-n_states=", string(n_states), ".png")
@@ -391,8 +391,19 @@ plot([i for i in 2:5], St_Rand_stddev, label = "σ of Random Policy", linecolor 
 scatter!([i for i in 2:5], St_Rand_stddev, label = nothing, markercolor = :red)
 plot!([i for i in 2:5], St_ValIter_stddev, label = "σ of Val_Iter Policy", linecolor = :blue, linewidth = 2, legend = :topleft)
 scatter!([i for i in 2:5], St_ValIter_stddev, label = nothing, markercolor = :blue)
-xlabel!("Number of States")
+xlabel!("Number of Opinions")
 ylabel!("Cumulative Reward")
 title!("Standard Deviation")
 st = string(folder, "/Stddev", "-n_states=", string(n_states), ".png")
 savefig(st)
+
+open(string(folder,"/Data.txt"), "w") do file
+    write(file, string(Ag_Rand_mean))
+	write(file, string(Ag_Rand_stddev))
+	write(file, string(Ag_ValIter_mean))
+	write(file, string(Ag_ValIter_stddev))
+	write(file, string(St_Rand_mean))
+	write(file, string(St_Rand_stddev))
+	write(file, string(St_ValIter_mean))
+	write(file, string(St_ValIter_stddev))
+end
