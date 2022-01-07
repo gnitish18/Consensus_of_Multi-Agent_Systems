@@ -1,4 +1,4 @@
-# Opinon Formation Dynamics in Multi-Agent Swarms
+# Opinion Formation Dynamics in Multi-Agent Swarms
 Nitish Gudapati and Shashvat Jayakrishnan\
 Group #108 - AA228/CS238, Stanford University
 \
